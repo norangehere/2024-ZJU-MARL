@@ -22,20 +22,19 @@ class QNetwork(nn.Module):
         '''
         self.fc1 = nn.Linear(env.observation_space.shape[0], 256)
         self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, env.action_space.n)
-        self.network = nn.Sequential(
-            self.fc1,
-            nn.ReLU(),
-            self.fc2,
-            nn.ReLU(),
-            self.fc3
-        )
+        self.value_fc = nn.Linear(256, 1)
+        self.advantage_fc = nn.Linear(256, env.action_space.n)
 
     def forward(self, x):
         '''
         前向计算
         '''
-        return self.network(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        value = self.value_fc(x)
+        advantage = self.advantage_fc(x)
+        q_values = value + (advantage - advantage.mean())
+        return q_values
 
 
 if __name__ == "__main__":
@@ -47,7 +46,7 @@ if __name__ == "__main__":
     gamma = 0.99
     tau = 1.0
 
-    learning_starts = 80000
+    learning_starts = 10000
     train_frequency = 4
     log_frequency = 500
     target_frequency = 1000
@@ -64,7 +63,6 @@ if __name__ == "__main__":
     '''
     q_network = QNetwork(env).to(device)
     target_network = copy.deepcopy(q_network)
-    # double_q_network = copy.deepcopy(q_network)
     optimizer = optim.Adam(q_network.parameters(), lr=learning_rate)
 
 
@@ -116,8 +114,7 @@ if __name__ == "__main__":
                 Q(s,a) (old_val)
                 '''
                 with torch.no_grad():
-                    next_actions = q_network(next_buffer_obs).argmax(dim=1, keepdim=True)
-                    target_max = target_network(next_buffer_obs).gather(1, next_actions)
+                    target_max = target_network(buffer_obs).max(dim=1,keepdim=True)[0]
                     td_target = rew + gamma * target_max * cont
                 old_val = q_network(buffer_obs).gather(1, act)
 
@@ -138,9 +135,7 @@ if __name__ == "__main__":
             if step % target_frequency == 0:
                 for target_param, param in zip(target_network.parameters(), q_network.parameters()):
                     target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
-                # for target_param, param in zip(double_q_network.parameters(), q_network.parameters()):
-                #     target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
 
     env.close()
-    model_path = f"Freeway-runs/DDQN.pt"
+    model_path = f"Freeway-runs/DuelingDQN.pt"
     torch.save(q_network.state_dict(), model_path)
