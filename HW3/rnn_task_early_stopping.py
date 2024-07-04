@@ -37,7 +37,12 @@ data = torch.Tensor(data) #转换为tensor张量
 
 # split two datasets
 from torch.utils.data import random_split
-train_set, test_set = random_split(data, [0.8, 0.2]) #划分训练集和测试集
+train_set, val_set, test_set = random_split(data, [0.7, 0.15, 0.15]) #划分训练集、验证集和测试集
+
+# early stopping 参数设置
+best_val_loss = float('inf')
+epochs_no_improve = 0
+max_epochs_stop = 10 # 当连续10个epoch验证集loss没有下降时，停止训练
 
 # define network
 class SimpleClassificationRNN(nn.Module):
@@ -59,8 +64,8 @@ class SimpleClassificationRNN(nn.Module):
         tmp, hc = self.rnn(seq, hc)
         out = torch.sigmoid(self.linear(hc[-1, ... ,:]))
         return out, hc
-hidden_size = 20
-learning_rate = 0.025
+hidden_size = 15
+learning_rate = 0.01
 
 model = SimpleClassificationRNN(hidden_size)
 
@@ -68,8 +73,8 @@ model = SimpleClassificationRNN(hidden_size)
 task 3: select appropriate criterion and optimizer
 '''
 criterion = nn.BCELoss() # loss function
-# optimizer = optim.Adam(model.parameters(), learning_rate) # use Adam as optimizer
-optimizer = optim.SGD(model.parameters(), lr=learning_rate)  # 使用SGD作为优化器
+optimizer = optim.Adam(model.parameters(), learning_rate) # use Adam as optimizer
+# optimizer = optim.SGD(model.parameters(), lr=learning_rate)  # 使用SGD作为优化器
 
 def cal_accuracy(preds, true_values):
     preds = torch.where(preds>0.5, 1, 0)
@@ -97,6 +102,21 @@ for epoch in range(epochs):
     f1 = f1_score(output.view(-1), train_set[:][:, -1])
     loss.backward()
     optimizer.step()
+
+    # early stopping
+    if epoch > 100:
+        optimizer.zero_grad()
+        val_output, _ = model(val_set[:][:, :-1, np.newaxis])
+        val_loss = criterion(val_output.view(-1), val_set[:][:, -1])
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+        if epochs_no_improve == max_epochs_stop:
+            print("Early stopping! Epoch: ", epoch)
+            break
+
     if epoch % 10 == 0:
         print("Epoch {}: loss: {} f1: {} acc: {}".format(epoch, loss.item(), f1, acc))
 # performance on test set
