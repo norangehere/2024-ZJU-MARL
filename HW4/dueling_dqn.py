@@ -81,10 +81,10 @@ if __name__ == "__main__":
             actions = env.action_space.sample()
         else: # greedy
             with torch.no_grad():
-                q_values = q_network(torch.tensor(obs, dtype=torch.float32, device=device))
+                q_values = q_network(torch.tensor(obs, device=device, dtype=torch.float32).unsqueeze(dim=0))
                 # print(q_values)
-                actions = q_values.argmax().item()
-                # actions = torch.argmax(q_values, dim=1).cpu().numpy()
+                # actions = q_values.argmax().item()
+                actions = torch.argmax(q_values, dim=1).cpu().numpy()
         
         
         if type(actions) == np.ndarray:

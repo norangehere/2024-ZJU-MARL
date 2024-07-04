@@ -24,11 +24,11 @@ class QNetwork(nn.Module):
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, env.action_space.n)
         self.network = nn.Sequential(
-            self.fc1,
+            nn.Linear(env.observation_space.shape[0], 256),
             nn.ReLU(),
-            self.fc2,
+            nn.Linear(256, 256),
             nn.ReLU(),
-            self.fc3
+            nn.Linear(256, env.action_space.n)
         )
 
     def forward(self, x):
@@ -42,12 +42,12 @@ if __name__ == "__main__":
     # Parameters
     learning_rate = 3e-4
     buffer_size = int(1e5)
-    total_timesteps = int(8e5)
+    total_timesteps = int(1e6)
     epsilon = 0.01
     gamma = 0.99
     tau = 1.0
 
-    learning_starts = 10000
+    learning_starts = 80000
     train_frequency = 4
     log_frequency = 500
     target_frequency = 1000
@@ -82,10 +82,10 @@ if __name__ == "__main__":
             actions = env.action_space.sample()
         else: # greedy
             with torch.no_grad():
-                q_values = q_network(torch.tensor(obs, dtype=torch.float32, device=device))
+                q_values = q_network(torch.tensor(obs, device=device, dtype=torch.float32).unsqueeze(dim=0))
                 # print(q_values)
-                actions = q_values.argmax().item()
-                # actions = torch.argmax(q_values, dim=1).cpu().numpy()
+                # actions = q_values.argmax().item()
+                actions = torch.argmax(q_values, dim=1).cpu().numpy()
         
         
         if type(actions) == np.ndarray:
